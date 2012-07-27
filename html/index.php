@@ -9,7 +9,7 @@ define('C',   APP      . 'controller/');
 
 /* Database defines as demonstrated in section */
 define('DB_HOST', 'localhost');
-define('DB_DATABASE', 'jharvard_project1');
+define('DB_DATABASE', 'jharvard_project2');
 define('DB_USER', 'jharvard');
 define('DB_PASS', 'crimson');
 define('DSN', 'mysql:host='.DB_HOST.';dbname='.DB_DATABASE);
