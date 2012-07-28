@@ -5,6 +5,7 @@
 	<?php include('header-content.php'); ?>
 </head>
 
+<!-- body onload as demonstrated in section -->
 <body onload="initialize();addPolyline();addMarker();">
     <div class='navbar navbar-fixed-top'>
         <div class='navbar-inner'>
@@ -18,8 +19,8 @@
     <div class='container' style="width:100%; height:100%">
     <?php include('selectbox.php'); ?>            
         <div class="row" style="width:60%; height:80%">
-  	        <div class="span8 offset2" id="map_canvas" style="width:60%; height:80%"></div>
-        </div>
+  	        <div class="span8 offset2" id="map_canvas" style="width:60%; height:80%"></div><!--span8 offset2-->
+        </div><!--row-->
     </div><!--container-->   
 </body>
 </html>

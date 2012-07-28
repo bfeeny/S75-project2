@@ -2,14 +2,14 @@
 
 /* Authorization key for BART API */
 $bartKey = "EAHR-5KUA-TSME-IADP";
+
 $refreshCache = false;
+$adjustCenterPoint = false;
 $renderView = '';
 
-/* 
-From PHP Tutorials Examples Introduction to PHP PDO 
-http://www.phpro.org/tutorials/Introduction-to-PHP-PDO.html#4.3 
-connect to our database
-*/
+/* From PHP Tutorials Examples Introduction to PHP PDO 
+   http://www.phpro.org/tutorials/Introduction-to-PHP-PDO.html#4.3 
+   connect to our database */
 function connectDb () 
 {
     try 
@@ -22,11 +22,9 @@ function connectDb ()
     }       
 }
 
-/*
-	Curl routine taken from Extracting XML data in PHP with SimpleXML
-	http://www.bobulous.org.uk/coding/php-5-xml-feeds.html
-	We will suck down into $xmlRoutesFile the raw XML from BART of their routes
-*/
+/* Curl routine taken from Extracting XML data in PHP with SimpleXML
+   http://www.bobulous.org.uk/coding/php-5-xml-feeds.html
+   We will suck down into $xmlRoutesFile the raw XML from BART of their routes */
 function curlFile($url)
 {
 
@@ -40,20 +38,22 @@ function curlFile($url)
     {
 	    return $xml;
     }
+    
     /* For some reason we were not able to get the raw XML from BART so error */
     else
     {
-        exit('Failed to open $xmlRoutesUrl.');
+        exit('Failed to open $url.');
     }
 }
-/*
-we only need to call this function to build our initial cache or optionally refresh it as needed.
-This will be controlled with the boolean refreshCache, which will be false by default.
-*/
+
+/* we only need to call this function to build our initial cache or optionally refresh it as needed.
+   This will be controlled with the boolean refreshCache, which will be false by default. */
 function buildCache()
 {
 	global $bartKey;
 	global $pdo;
+	
+	/* URL's from BART API for route and station information */
 	$xmlRoutesUrl   = "http://api.bart.gov/api/route.aspx?cmd=routeinfo&route=all&key=$bartKey";
 	$xmlStationsUrl = "http://api.bart.gov/api/stn.aspx?cmd=stns&key=$bartKey";
 	
@@ -115,10 +115,8 @@ function buildCache()
             }
        	}
        	       	
-        /* 
-        	build query to populate fresh route information 
-        	setup query with prepare and bind to insure safe input 
-        */                      
+        /* build query to populate fresh route information 
+           setup query with prepare and bind to insure safe input */                      
         $query1 = "INSERT INTO routes (number, routeID, abbr, name, color, origin, destination, direction, num_stns) 
         							  VALUES(:number, :routeID, :abbr, :name, :color, :origin, :destination, :direction, :num_stns)";
         							                       
@@ -179,16 +177,29 @@ function buildCache()
     $pdo = null;                              
 }
 
+/* generates the JavaScript that will be used to add markers to our map */
 function buildMarkerScript($route)
 {
 		global $markerScript;
+		global $mapLatitude, $mapLongitude;
+		global $adjustCenterPoint;
 		
 		$pdo = connectDb();
 		
+		/* get a list of all applicable station information for our selected route using an inner join */
 		$query = sprintf("SELECT abbr, name, gtfs_latitude, gtfs_longitude FROM stations JOIN routelist ON routelist.station = stations.abbr 
 															 AND routelist.number='%s' ORDER BY routelist.sequence", $route);
+
+		/* Optionally the program can adjust the map centerpoint based on the route selected */		
+		if($adjustCenterPoint)
+		{											 	
+	    	$mapLatitude  = $pdo->query($query)->fetch()['gtfs_latitude'];
+	    	$mapLongitude = $pdo->query($query)->fetch()['gtfs_longitude'];
+	    }
+
 		foreach($pdo->query($query) as $row) 
 		{
+			/* create unique marker for our station */
 		    $markerScript .= "marker{$row['abbr']} = new google.maps.Marker({
             						position: new google.maps.LatLng({$row['gtfs_latitude']},{$row['gtfs_longitude']}),
             						title: \"{$row['name']}\"
@@ -196,24 +207,33 @@ function buildMarkerScript($route)
              
             				  marker{$row['abbr']}.setMap(map);
             				  ";
+            			
+            /* create a unique event listener for our marker which will pull ETD data via ajax when clicked */	  
             $markerScript .= "google.maps.event.addListener(marker{$row['abbr']}, 'click', function() {
-            				    infowindow.open(map,marker{$row['abbr']});
+            					infowindow.close();
+            					getETD(marker{$row['abbr']},'{$row['abbr']}');
+            					infowindow.open(map,marker{$row['abbr']});
             				  });";
-
-		}
-		
+		}		
 		$pdo = null;
 }
 
+/* draws polylines connecting each station along the selected route */
 function buildPolyLineScript($route)
 {
 	global $polyLineScript;
 	
 	$pdo = connectDb();
 	
+	/* get the BART determined color for our route */
 	$query = sprintf("SELECT color from routes where number='%s'", $route);
+
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$color = $pdo->query($query)->fetch()['color'];
+
+
    
+    /* get lat/long information so we can construct our polylines */
     $query = sprintf("SELECT gtfs_latitude, gtfs_longitude FROM stations JOIN routelist ON routelist.station = stations.abbr 
 															 AND routelist.number='%s' ORDER BY routelist.sequence", $route);
 
@@ -228,12 +248,29 @@ function buildPolyLineScript($route)
                               path: polylineCoordinates,
                               strokeColor: \"$color\",
                               strokeOpacity: 1.0,
-                              strokeWeight: 2
+                              strokeWeight: 8
                           }); 
        	                  
-                          polylinePath.setMap(map);";
-    
+                          polylinePath.setMap(map);";    
     $pdo = null;
+}
 
+/* Determine if the route passed is a valid route or not 
+   Using PDOStatement::rowCount learned from http://php.net/manual/en/pdostatement.rowcount.php */
+function routeIsValid($route)
+{
+    $pdo = connectDb();
+
+    $query = sprintf("SELECT * from routes where number='%s'", $route);
+    $stmt = $pdo->prepare($query);
+    $stmt->execute();
+    if($stmt->rowCount() > 0)
+    {
+	    return true;
+    }
+    else
+    {
+	    return false;
+    }
 }
 ?>

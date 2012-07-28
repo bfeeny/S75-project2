@@ -2,17 +2,22 @@
 /* Start session tracking */
 session_start();
 
+$mapLatitude = '37.775362';
+$mapLongitude = '-122.417564';
+
 /* Prepare data and make functions available */
 include(M . "model.php");
 
+/* if refreshCache is set to true, we repopulate our BART mysql data cache */
 if ($refreshCache)
 {
 	buildCache();
 }
 
-if(isset($_GET['route'])) 
+/* if we have a route selected, build the script for drawing markers and polylines 
+   if the user passed in an invalid route ignore it */
+if(isset($_GET['route']) && routeIsValid($_GET['route'])) 
 {
-	echo "Route " . $_GET['route'] . " has been chosen";
 	buildMarkerScript($_GET['route']);
 	buildPolyLineScript($_GET['route']);
 } else 
